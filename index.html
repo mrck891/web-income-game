@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>不労所得タイクーン</title>
+
+<!--
+  ▼▼▼ オンラインランキングをFirebaseで動かすための読み込みタグ ▼▼▼
+  ここは何も変更しなくてOK。Firebaseの「基本セット」を読み込んでるだけ。
+-->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<style>
+  :root {
+    --bg: #0e1015;
+    --panel: #171a22;
+    --panel-raised: #1f232e;
+    --border: #2a2f3d;
+    --gold: #d4af37;
+    --gold-bright: #f0cf5c;
+    --mint: #4fd6c4;
+    --text: #e8e6e1;
+    --text-dim: #8b8f9c;
+    --danger: #c75450;
+    --font-display: 'Space Grotesk', 'Noto Sans JP', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+    --font-body: 'Noto Sans JP', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    padding: 24px 16px;
+    background-image:
+      radial-gradient(ellipse at top, rgba(212,175,55,0.06), transparent 60%),
+      linear-gradient(180deg, #0e1015 0%, #0a0c10 100%);
+  }
+
+  .wrap {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  header h1 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  header h1 span { color: var(--gold); }
+
+  .ticker {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--mint);
+    letter-spacing: 0.03em;
+  }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 18px;
+  }
+
+  @media (max-width: 720px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .balance-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .balance-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .balance-amount {
+    font-family: var(--font-mono);
+    font-size: clamp(32px, 6vw, 44px);
+    font-weight: 700;
+    color: var(--gold-bright);
+    margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .balance-sub {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--mint);
+    margin-bottom: 22px;
+  }
+
+  #clickBtn {
+    background: linear-gradient(180deg, #2a2f3d, #1a1d24);
+    border: 1px solid var(--gold);
+    color: var(--gold-bright);
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 700;
+    padding: 20px 36px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform 0.06s ease, box-shadow 0.15s ease;
+    box-shadow: 0 0 0 rgba(212,175,55,0);
+    user-select: none;
+  }
+
+  #clickBtn:hover {
+    box-shadow: 0 0 24px rgba(212,175,55,0.25);
+  }
+
+  #clickBtn:active {
+    transform: scale(0.94);
+  }
+
+  #clickBtn.auto-pulse {
+    animation: autoPulse 0.4s ease;
+  }
+
+  @keyframes autoPulse {
+    0% { box-shadow: 0 0 0 rgba(79,214,196,0); }
+    40% { box-shadow: 0 0 22px rgba(79,214,196,0.55); border-color: var(--mint); }
+    100% { box-shadow: 0 0 0 rgba(79,214,196,0); border-color: var(--gold); }
+  }
+
+  .click-hint {
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .float-plus {
+    position: absolute;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--gold-bright);
+    pointer-events: none;
+    animation: floatUp 0.9s ease-out forwards;
+    font-size: 15px;
+  }
+
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) translateX(0); }
+    100% { opacity: 0; transform: translateY(-60px) translateX(var(--drift, 0px)); }
+  }
+
+  .invest-panel h2 {
+    font-family: var(--font-display);
+    font-size: 15px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .invest-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 480px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  .invest-item {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .invest-item.affordable:hover {
+    border-color: var(--gold);
+    background: #23283494;
+  }
+
+  .invest-item.locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .invest-icon {
+    font-size: 22px;
+    width: 34px;
+    text-align: center;
+  }
+
+  .invest-name {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .invest-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .invest-owned {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--mint);
+    margin-top: 3px;
+  }
+
+  .invest-cost {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--gold);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .invest-cost.cant-afford { color: var(--danger); }
+
+  footer {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .company-panel {
+    margin-top: 18px;
+  }
+
+  .company-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .company-header h2 {
+    font-family: var(--font-display);
+    font-size: 15px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .company-stage {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--gold-bright);
+    border: 1px solid var(--border);
+    background: var(--panel-raised);
+    padding: 4px 12px;
+    border-radius: 999px;
+    transition: color 0.3s ease;
+  }
+
+  .skyline {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap-reverse;
+    min-height: 170px;
+    padding-top: 10px;
+    width: 100%;
+  }
+
+  .building-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: floorRise 0.4s ease-out;
+  }
+
+  .building-unit svg { display: block; }
+
+  .building-unit .window {
+    fill: var(--border);
+    transition: fill 0.4s ease;
+  }
+
+  .building-unit .window.lit {
+    fill: var(--gold-bright);
+    filter: drop-shadow(0 0 2px rgba(240,207,92,0.7));
+  }
+
+  @keyframes floorRise {
+    0% { opacity: 0; transform: translateY(14px) scale(0.92); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .tree-row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 8px;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .ground {
+    width: 260px;
+    max-width: 90%;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 4px;
+  }
+
+  .company-panel.stage-flash {
+    animation: stageFlash 0.7s ease;
+  }
+
+  @keyframes stageFlash {
+    0% { box-shadow: 0 0 0 rgba(212,175,55,0); border-color: var(--border); }
+    30% { box-shadow: 0 0 40px rgba(212,175,55,0.5); border-color: var(--gold); }
+    100% { box-shadow: 0 0 0 rgba(212,175,55,0); border-color: var(--border); }
+  }
+
+  .skyline.grow-pulse {
+    animation: growPulse 0.45s ease;
+  }
+
+  @keyframes growPulse {
+    0% { transform: scale(1); filter: brightness(1); }
+    40% { transform: scale(1.04); filter: brightness(1.4); }
+    100% { transform: scale(1); filter: brightness(1); }
+  }
+
+  .confetti-piece {
+    position: absolute;
+    top: -10px;
+    width: 7px;
+    height: 12px;
+    border-radius: 1px;
+    pointer-events: none;
+    animation: confettiFall 1.4s ease-in forwards;
+    z-index: 5;
+  }
+
+  @keyframes confettiFall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(180px) rotate(540deg); opacity: 0; }
+  }
+
+  .company-stage.stage-max {
+    background: linear-gradient(90deg, #d4af37, #f0cf5c, #4fd6c4, #d4af37);
+    background-size: 300% 100%;
+    animation: rainbowShift 2.5s linear infinite;
+    color: #0e1015;
+    font-weight: 700;
+    border-color: transparent;
+  }
+
+  @keyframes rainbowShift {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+  }
+
+  .start-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,12,16,0.88);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+    transition: opacity 0.35s ease, visibility 0.35s ease;
+  }
+
+  .start-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .start-modal {
+    background: var(--panel);
+    border: 1px solid var(--gold);
+    border-radius: 12px;
+    padding: 32px 28px;
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 0 50px rgba(212,175,55,0.15);
+  }
+
+  .start-modal .start-icon {
+    font-size: 34px;
+    margin-bottom: 10px;
+  }
+
+  .start-modal h2 {
+    font-family: var(--font-display);
+    font-size: 19px;
+    margin-bottom: 8px;
+  }
+
+  .start-modal p {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+    line-height: 1.6;
+  }
+
+  #companyNameInput {
+    width: 100%;
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    margin-bottom: 16px;
+    outline: none;
+    transition: border-color 0.2s ease;
+  }
+
+  #companyNameInput:focus {
+    border-color: var(--gold);
+  }
+
+  #startBtn {
+    width: 100%;
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+    border: none;
+    color: #14151a;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 14px;
+    padding: 13px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+  }
+
+  #startBtn:hover {
+    box-shadow: 0 0 20px rgba(212,175,55,0.35);
+  }
+
+  #startBtn:active {
+    transform: scale(0.97);
+  }
+
+  .company-name-tag {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .company-name-tag span {
+    color: var(--gold-bright);
+  }
+
+  .theme-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .theme-swatch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 12px 6px 8px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .theme-swatch .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .theme-swatch:hover {
+    border-color: var(--gold);
+  }
+
+  .theme-swatch.selected {
+    border-color: var(--mint);
+    color: var(--mint);
+  }
+
+  .theme-swatch.locked {
+    color: var(--text-dim);
+  }
+
+  .theme-swatch .theme-cost {
+    color: var(--gold);
+  }
+
+  .gamble-panel {
+    margin-top: 18px;
+  }
+
+  .gamble-warning {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+
+  .stake-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .stake-btn {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 9px 4px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .stake-btn:hover {
+    border-color: var(--gold);
+  }
+
+  .stake-btn.selected {
+    border-color: var(--mint);
+    color: var(--mint);
+  }
+
+  .stake-summary {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+
+  .stake-summary span {
+    color: var(--gold-bright);
+    font-weight: 700;
+  }
+
+  .stock-chart-wrap {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px 6px;
+    margin-bottom: 14px;
+  }
+
+  .stock-price-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  #stockChangeLabel {
+    font-size: 12px;
+    color: var(--text-dim);
+    transition: color 0.2s ease;
+  }
+
+  #stockChangeLabel.up { color: var(--mint); }
+  #stockChangeLabel.down { color: var(--danger); }
+
+  #stockChart {
+    width: 100%;
+    height: 90px;
+    display: block;
+  }
+
+  .stock-baseline {
+    stroke: var(--border);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+  }
+
+  .stock-line {
+    fill: none;
+    stroke: var(--mint);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    transition: stroke 0.2s ease;
+  }
+
+  .stock-line.down { stroke: var(--danger); }
+
+  #gambleBtn {
+    width: 100%;
+    background: linear-gradient(180deg, #c75450, #a83f3c);
+    border: none;
+    color: #fff;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 14px;
+    padding: 13px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+  }
+
+  #gambleBtn:hover {
+    box-shadow: 0 0 20px rgba(199,84,80,0.35);
+  }
+
+  #gambleBtn:active {
+    transform: scale(0.97);
+  }
+
+  #gambleBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .gamble-result {
+    text-align: center;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 15px;
+    min-height: 24px;
+    margin-top: 14px;
+    transition: opacity 0.2s ease;
+  }
+
+  .gamble-result.win { color: var(--mint); }
+  .gamble-result.lose { color: var(--danger); }
+  .gamble-result.flat { color: var(--text-dim); }
+
+  .gamble-history {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .gamble-chip {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .gamble-chip.win { background: var(--mint); }
+  .gamble-chip.lose { background: var(--danger); }
+  .gamble-chip.flat { background: var(--border); }
+
+  .leaderboard-panel {
+    margin-top: 18px;
+  }
+
+  .rank-btn {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .rank-btn:hover {
+    border-color: var(--gold);
+    color: var(--gold-bright);
+  }
+
+  .leaderboard-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+
+  .leaderboard-empty {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 14px 0;
+  }
+
+  .rank-item {
+    display: grid;
+    grid-template-columns: 30px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+  }
+
+  .rank-item.rank-1 { border-color: var(--gold); }
+  .rank-item.rank-2 { border-color: #8b8f9c; }
+  .rank-item.rank-3 { border-color: #b08d57; }
+
+  .rank-num {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--gold-bright);
+    text-align: center;
+  }
+
+  .rank-name {
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rank-score {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--mint);
+    white-space: nowrap;
+  }
+
+  #submitScoreBtn {
+    width: 100%;
+    background: var(--panel-raised);
+    border: 1px solid var(--gold);
+    color: var(--gold-bright);
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  #submitScoreBtn:hover {
+    background: #23283494;
+  }
+
+  #submitScoreBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .leaderboard-status {
+    text-align: center;
+    font-size: 11px;
+    color: var(--mint);
+    min-height: 16px;
+    margin-top: 8px;
+  }
+
+  .milestone-banner {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--mint);
+    min-height: 18px;
+    margin-top: 10px;
+    transition: opacity 0.3s ease;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="start-overlay" id="startOverlay">
+  <div class="start-modal">
+    <div class="start-icon">🏢</div>
+    <h2>会社を設立しよう</h2>
+    <p>あなたが育てる会社の名前を決めてください。<br>後から見返して思い出になる名前がおすすめです。</p>
+    <input id="companyNameInput" type="text" maxlength="20" placeholder="例: 〇〇ホールディングス">
+    <button id="startBtn">この名前で設立する</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>不労所得<span>タイクーン</span></h1>
+      <div class="company-name-tag">経営中: <span id="companyNameTag">個人事業主</span></div>
+    </div>
+    <div class="ticker" id="tickerRate">秒間収入 ¥0</div>
+  </header>
+
+  <div class="main-grid">
+    <div class="panel balance-panel" id="balancePanel">
+      <div class="balance-label">総資産</div>
+      <div class="balance-amount" id="balanceAmount">¥0</div>
+      <div class="balance-sub" id="perClickLabel">1クリック = ¥1</div>
+      <button id="clickBtn">稼ぐ</button>
+      <div class="click-hint">クリックして元手を作ろう</div>
+    </div>
+
+    <div class="panel invest-panel">
+      <h2>投資先を選ぶ</h2>
+      <div class="invest-list" id="investList"></div>
+    </div>
+  </div>
+
+  <div class="panel company-panel">
+    <div class="company-header">
+      <h2>あなたの会社</h2>
+      <div class="company-stage" id="companyStage">個人事業</div>
+    </div>
+    <div class="building-scene">
+      <div class="skyline" id="skyline"></div>
+      <div class="ground"></div>
+      <div class="tree-row">🌳🌳🌳</div>
+    </div>
+    <div class="theme-row" id="themeRow"></div>
+  </div>
+
+  <div class="panel gamble-panel">
+    <div class="company-header">
+      <h2>ハイリスク投資(仮想通貨)</h2>
+      <div class="gamble-warning">当たり外れが大きいです</div>
+    </div>
+
+    <div class="stake-row">
+      <button class="stake-btn" data-percent="10">資産の10%</button>
+      <button class="stake-btn" data-percent="25">資産の25%</button>
+      <button class="stake-btn" data-percent="50">資産の50%</button>
+      <button class="stake-btn" data-percent="100">全額</button>
+    </div>
+
+    <div class="stake-summary">
+      賭け金: <span id="stakeAmount">¥0</span>
+    </div>
+
+    <div class="stock-chart-wrap" id="stockChartWrap">
+      <div class="stock-price-row">
+        <span id="stockPriceLabel">株価: 100</span>
+        <span id="stockChangeLabel">(±0.0%)</span>
+      </div>
+      <svg id="stockChart" viewBox="0 0 300 100" preserveAspectRatio="none">
+        <line id="stockBaseline" x1="0" y1="50" x2="300" y2="50" class="stock-baseline"/>
+        <polyline id="stockLine" class="stock-line" points=""/>
+      </svg>
+    </div>
+
+    <button id="gambleBtn">勝負する</button>
+
+    <div class="gamble-result" id="gambleResult"></div>
+
+    <div class="gamble-history" id="gambleHistory"></div>
+  </div>
+
+  <div class="panel leaderboard-panel">
+    <div class="company-header">
+      <h2>オンラインランキング</h2>
+      <button id="refreshRankBtn" class="rank-btn">更新</button>
+    </div>
+    <div class="leaderboard-list" id="leaderboardList">
+      <div class="leaderboard-empty">まだ誰も登録していません</div>
+    </div>
+    <button id="submitScoreBtn">現在の資産をランキングに登録する</button>
+    <div class="leaderboard-status" id="leaderboardStatus"></div>
+  </div>
+
+  <div class="milestone-banner" id="milestoneBanner"></div>
+
+  <footer>
+    資産が育つほど、クリックしなくても収入が入るようになる仕組みを体感するゲームです。
+  </footer>
+</div>
+
+<script>
+  // ============================================================
+  // ▼▼▼ ここにFirebaseの設定を貼り付ける ▼▼▼
+  //
+  // 手順:
+  // 1. https://console.firebase.google.com/ にアクセス
+  // 2. 「プロジェクトを追加」→ 名前を入力して作成(無料)
+  // 3. 左メニューの「Firestore Database」→「データベースの作成」
+  //    → ロケーションは asia-northeast1(東京)推奨 → テストモードで開始
+  // 4. 左メニューの「プロジェクトの概要」の歯車 →「プロジェクトの設定」
+  // 5. 下の方の「マイアプリ」→ Webアイコン(</>)をクリックしてアプリを登録
+  // 6. 表示された firebaseConfig をまるごとコピーして、
+  //    下の const firebaseConfig = {...} を置き換える
+  // ============================================================
+  const firebaseConfig = {
+    apiKey: "ここに貼り付け",
+    authDomain: "ここに貼り付け",
+    projectId: "ここに貼り付け",
+    storageBucket: "ここに貼り付け",
+    messagingSenderId: "ここに貼り付け",
+    appId: "ここに貼り付け"
+  };
+
+  let db = null;
+  let firebaseReady = false;
+  try {
+    if (firebaseConfig.apiKey !== "ここに貼り付け") {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+      firebaseReady = true;
+    }
+  } catch (e) {
+    console.error('Firebase初期化エラー:', e);
+  }
+  // ============================================================
+
+  // ---- ゲーム状態 ----
+  let money = 0;
+  let perClick = 1;
+  let perSecond = 0;
+
+  const investments = [
+    {
+      id: 'baito',
+      icon: '💼',
+      name: 'バイトを頑張る',
+      desc: 'クリックの威力が上がる',
+      baseCost: 15,
+      cost: 15,
+      owned: 0,
+      type: 'click',
+      power: 1
+    },
+    {
+      id: 'blog',
+      icon: '📝',
+      name: 'ブログ広告収入',
+      desc: '秒間 +0.5 の自動収入',
+      baseCost: 50,
+      cost: 50,
+      owned: 0,
+      type: 'auto',
+      power: 0.5
+    },
+    {
+      id: 'stock',
+      icon: '📈',
+      name: '配当株を買う',
+      desc: '秒間 +3 の自動収入',
+      baseCost: 300,
+      cost: 300,
+      owned: 0,
+      type: 'auto',
+      power: 3
+    },
+    {
+      id: 'realestate',
+      icon: '🏢',
+      name: '不動産に投資',
+      desc: '秒間 +20 の自動収入',
+      baseCost: 2000,
+      cost: 2000,
+      owned: 0,
+      type: 'auto',
+      power: 20
+    },
+    {
+      id: 'mna',
+      icon: '🏦',
+      name: '会社を買収する(M&A)',
+      desc: '秒間 +150 の自動収入',
+      baseCost: 15000,
+      cost: 15000,
+      owned: 0,
+      type: 'auto',
+      power: 150
+    },
+    {
+      id: 'employee',
+      icon: '🧑‍💼',
+      name: '社員を雇う',
+      desc: '2秒ごとに自動でクリックしてくれる(1クリック分の収入 × 人数)',
+      baseCost: 800,
+      cost: 800,
+      owned: 0,
+      type: 'employee',
+      power: 0
+    },
+    {
+      id: 'ipo',
+      icon: '📊',
+      name: '株式追加発行(増資)',
+      desc: '上場すると解禁。株式市場から大型資金調達、秒間 +800 の自動収入',
+      baseCost: 80000000,
+      cost: 80000000,
+      owned: 0,
+      type: 'auto',
+      power: 800,
+      unlockStage: '上場企業'
+    }
+  ];
+
+  const GROWTH_RATE = 1.15;
+  let shownMilestones = new Set();
+  const milestones = [
+    { at: 100, text: '最初の元手ができた。次は"仕組み"に投資しよう。' },
+    { at: 1000, text: 'クリックだけに頼らない収入が育ち始めている。' },
+    { at: 10000, text: '自動収入がクリック収入を上回ってきた!' },
+    { at: 100000, text: '資産が資産を生む段階に入った。' },
+    { at: 1000000, text: '寝ててもお金が増える。不労所得タイクーンの誕生。' }
+  ];
+
+  // ---- 会社の成長段階(資産が増えるほどビルの「棟数」も増える) ----
+  const companyStages = [
+    { at: 0, name: '個人事業', buildings: 1 },
+    { at: 1000, name: '個人事業主', buildings: 1 },
+    { at: 10000, name: 'スタートアップ', buildings: 2 },
+    { at: 100000, name: '成長企業', buildings: 3 },
+    { at: 1000000, name: '中堅企業', buildings: 4 },
+    { at: 10000000, name: '上場企業', buildings: 5 },
+    { at: 100000000, name: 'コングロマリット', buildings: 7 }
+  ];
+
+  function getStageIndex(m) {
+    let idx = 0;
+    for (let i = 0; i < companyStages.length; i++) {
+      if (m >= companyStages[i].at) idx = i;
+    }
+    return idx;
+  }
+
+  const IPO_STAGE_INDEX = companyStages.findIndex(s => s.name === '上場企業');
+
+  // 資産の桁数(対数)に応じてビル1棟あたりの階数を決める。1桁増えるごとに階が積み上がるイメージ
+  function getFloorCount(m) {
+    const floors = Math.floor(Math.log10(m + 10)) * 2 - 2;
+    return Math.max(2, Math.min(14, floors));
+  }
+
+  // ---- ビルの見た目テーマ(資産で購入・切り替えできるカスタマイズ) ----
+  const buildingThemes = [
+    {
+      id: 'default',
+      name: 'ネイビー&ゴールド',
+      cost: 0,
+      body: ['#232833', '#252b3a', '#1f2530', '#28303e', '#222836'],
+      roof: ['#d4af37', '#4fd6c4', '#d4af37', '#8b8f9c', '#4fd6c4']
+    },
+    {
+      id: 'neon',
+      name: 'シティネオン',
+      cost: 20000,
+      body: ['#12111c', '#161425', '#0f0e18', '#181529', '#100f1a'],
+      roof: ['#ff3fb0', '#2fe0ff', '#ff3fb0', '#8b5cf6', '#2fe0ff']
+    },
+    {
+      id: 'eco',
+      name: 'エコグリーン',
+      cost: 300000,
+      body: ['#152018', '#182619', '#121c15', '#1a2a1c', '#131f16'],
+      roof: ['#5fd97a', '#a8e6a1', '#5fd97a', '#e8e6e1', '#a8e6a1']
+    },
+    {
+      id: 'lux',
+      name: 'ラグジュアリーホワイト',
+      cost: 5000000,
+      body: ['#3a3220', '#463c26', '#332c1c', '#4a3f28', '#372f1e'],
+      roof: ['#f0cf5c', '#ffffff', '#f0cf5c', '#e8e6e1', '#ffffff']
+    }
+  ];
+
+  let ownedThemeIds = new Set(['default']);
+  let currentThemeId = 'default';
+
+  function getCurrentTheme() {
+    return buildingThemes.find(t => t.id === currentThemeId) || buildingThemes[0];
+  }
+
+  // ゲームっぽい雰囲気の窓付きビルをSVGで生成する(アップロード画像を参考にしたフラットなオフィスビル風)
+  function buildingSVG(floors, colorIndex) {
+    const cols = 3;
+    const winW = 8, winH = 8, gapX = 5, gapY = 6;
+    const padX = 8, padTop = 14, padBottom = 6;
+    const bodyW = padX * 2 + cols * winW + (cols - 1) * gapX;
+    const bodyH = padTop + padBottom + floors * winH + (floors - 1) * gapY;
+    const totalH = bodyH + 8; // 屋根の出っ張り分
+
+    let windows = '';
+    for (let row = 0; row < floors; row++) {
+      for (let col = 0; col < cols; col++) {
+        const x = padX + col * (winW + gapX);
+        const y = 8 + padTop + row * (winH + gapY);
+        const lit = Math.random() < 0.6;
+        windows += `<rect class="window${lit ? ' lit' : ''}" x="${x}" y="${y}" width="${winW}" height="${winH}" rx="1"/>`;
+      }
+    }
+
+    const theme = getCurrentTheme();
+    const bodyColor = theme.body[colorIndex % theme.body.length];
+    const roofColor = theme.roof[colorIndex % theme.roof.length];
+
+    return `<svg width="${bodyW}" height="${totalH}" viewBox="0 0 ${bodyW} ${totalH}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="0" width="${bodyW - 4}" height="6" rx="1" fill="${roofColor}"/>
+      <rect x="0" y="8" width="${bodyW}" height="${bodyH}" rx="2" fill="${bodyColor}" stroke="#0a0c10" stroke-width="1"/>
+      ${windows}
+    </svg>`;
+  }
+
+  // ---- DOM参照 ----
+  const balanceAmount = document.getElementById('balanceAmount');
+  const perClickLabel = document.getElementById('perClickLabel');
+  const tickerRate = document.getElementById('tickerRate');
+  const investList = document.getElementById('investList');
+  const clickBtn = document.getElementById('clickBtn');
+  const balancePanel = document.getElementById('balancePanel');
+  const milestoneBanner = document.getElementById('milestoneBanner');
+  const skylineEl = document.getElementById('skyline');
+  const companyStageEl = document.getElementById('companyStage');
+  const companyNameTag = document.getElementById('companyNameTag');
+  const startOverlay = document.getElementById('startOverlay');
+  const companyNameInput = document.getElementById('companyNameInput');
+  const startBtn = document.getElementById('startBtn');
+
+  const companyPanelEl = document.querySelector('.company-panel');
+  const buildingSceneEl = document.querySelector('.building-scene');
+  const themeRowEl = document.getElementById('themeRow');
+  const stakeButtons = document.querySelectorAll('.stake-btn');
+  const stakeAmountEl = document.getElementById('stakeAmount');
+  const gambleBtn = document.getElementById('gambleBtn');
+  const gambleResultEl = document.getElementById('gambleResult');
+  const gambleHistoryEl = document.getElementById('gambleHistory');
+  const stockPriceLabel = document.getElementById('stockPriceLabel');
+  const stockChangeLabel = document.getElementById('stockChangeLabel');
+  const stockLineEl = document.getElementById('stockLine');
+  const stockBaselineEl = document.getElementById('stockBaseline');
+
+  let companyName = '個人事業主';
+  let lastFloorCount = -1;
+  let lastBuildingCount = -1;
+  let lastStageName = '';
+  let highestStageIndex = 0;
+
+  const CONFETTI_COLORS = ['#d4af37', '#f0cf5c', '#4fd6c4', '#e8e6e1', '#c75450'];
+
+  function spawnConfetti(count) {
+    for (let i = 0; i < count; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random() * 100 + '%';
+      piece.style.background = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+      piece.style.animationDelay = (Math.random() * 0.3) + 's';
+      piece.style.animationDuration = (1.1 + Math.random() * 0.6) + 's';
+      buildingSceneEl.appendChild(piece);
+      setTimeout(() => piece.remove(), 2200);
+    }
+  }
+
+  function playFanfare() {
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // ド・ミ・ソ・高ド
+
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + i * 0.09);
+
+      gain.gain.setValueAtTime(0.0001, now + i * 0.09);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + i * 0.09 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.09 + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.09);
+      osc.stop(now + i * 0.09 + 0.4);
+    });
+  }
+
+  // 窓をランダムにチカチカさせて、ビルに生きてる感じを出す
+  function twinkleWindows() {
+    const windows = skylineEl.querySelectorAll('.window');
+    if (windows.length === 0) return;
+    const flipCount = Math.max(1, Math.floor(windows.length * 0.1));
+    for (let i = 0; i < flipCount; i++) {
+      const w = windows[Math.floor(Math.random() * windows.length)];
+      w.classList.toggle('lit');
+    }
+  }
+  setInterval(twinkleWindows, 650);
+
+  // 階数か棟数が変わった時だけスカイラインを作り直す(毎回作り直すとラグに繋がるため)
+  // ---- ビルテーマの表示・購入・切り替え ----
+  function buildThemeRow() {
+    themeRowEl.innerHTML = '';
+    buildingThemes.forEach(theme => {
+      const el = document.createElement('div');
+      el.className = 'theme-swatch';
+      el.innerHTML = `
+        <span class="dot" style="background:${theme.roof[0]}"></span>
+        <span class="theme-label">${theme.name}</span>
+        <span class="theme-cost"></span>
+      `;
+      el.addEventListener('click', () => handleThemeClick(theme.id));
+      themeRowEl.appendChild(el);
+      theme.el = el;
+      theme.costEl = el.querySelector('.theme-cost');
+    });
+  }
+
+  function updateThemeRow() {
+    buildingThemes.forEach(theme => {
+      const owned = ownedThemeIds.has(theme.id);
+      const selected = theme.id === currentThemeId;
+      theme.el.className = 'theme-swatch' + (selected ? ' selected' : '') + (!owned ? ' locked' : '');
+      theme.costEl.textContent = owned ? (selected ? '✓ 適用中' : '選択する') : formatMoney(theme.cost);
+    });
+  }
+
+  function handleThemeClick(id) {
+    const theme = buildingThemes.find(t => t.id === id);
+    if (!theme) return;
+
+    if (ownedThemeIds.has(id)) {
+      if (currentThemeId !== id) {
+        currentThemeId = id;
+        lastFloorCount = -1; // スカイラインを強制的に作り直す
+        updateCompany();
+        updateThemeRow();
+      }
+      return;
+    }
+
+    if (money >= theme.cost) {
+      money -= theme.cost;
+      ownedThemeIds.add(id);
+      currentThemeId = id;
+      lastFloorCount = -1;
+      render();
+    }
+  }
+
+  function updateCompany() {
+    // 一度到達したステージより下がらないようにする(投資で資産が一時的に減っても降格しない)
+    const previousHighest = highestStageIndex;
+    const rawIdx = getStageIndex(money);
+    if (rawIdx > highestStageIndex) highestStageIndex = rawIdx;
+    const stage = companyStages[highestStageIndex];
+
+    const floorCount = getFloorCount(money);
+    const buildingCount = stage.buildings;
+    const needsRebuild = floorCount !== lastFloorCount || buildingCount !== lastBuildingCount;
+
+    if (needsRebuild) {
+      lastFloorCount = floorCount;
+      lastBuildingCount = buildingCount;
+
+      skylineEl.innerHTML = '';
+      for (let b = 0; b < buildingCount; b++) {
+        const unit = document.createElement('div');
+        unit.className = 'building-unit';
+        unit.innerHTML = buildingSVG(floorCount, b);
+        skylineEl.appendChild(unit);
+      }
+
+      skylineEl.classList.remove('grow-pulse');
+      void skylineEl.offsetWidth; // アニメーション再発火のためのリフロー
+      skylineEl.classList.add('grow-pulse');
+    }
+
+    const stageName = stage.name;
+    if (stageName !== lastStageName) {
+      const isFirstRender = lastStageName === '';
+      lastStageName = stageName;
+      companyStageEl.textContent = stageName;
+      companyStageEl.classList.toggle('stage-max', stageName === 'コングロマリット');
+
+      if (!isFirstRender) {
+        companyPanelEl.classList.remove('stage-flash');
+        void companyPanelEl.offsetWidth;
+        companyPanelEl.classList.add('stage-flash');
+        spawnConfetti(28);
+        playFanfare();
+
+        // 上場企業ステージを通過した瞬間に、特別なIPOイベントを発火する
+        // (ギャンブルなどで一気に資産が増え、ステージを飛び越した場合も見逃さないようチェック)
+        if (previousHighest < IPO_STAGE_INDEX && highestStageIndex >= IPO_STAGE_INDEX) {
+          triggerIPO();
+        }
+      }
+    }
+  }
+
+  // ---- IPO(株式公開)イベント: 上場と同時に投資家から資金調達する ----
+  function triggerIPO() {
+    const investment = Math.floor(money * 0.5); // 時価総額の50%相当を資金調達
+    money += investment;
+
+    spawnConfetti(60);
+    setTimeout(() => spawnConfetti(60), 300);
+    playFanfare();
+    setTimeout(playFanfare, 350);
+
+    milestoneBanner.textContent =
+      `🔔 上場おめでとう! 投資家から ${formatMoney(investment)} の資金を調達しました`;
+    milestoneBanner.style.opacity = '1';
+    setTimeout(() => { milestoneBanner.style.opacity = '0'; }, 5000);
+  }
+
+  function formatMoney(n) {
+    if (n < 10000) return '¥' + Math.floor(n).toLocaleString('ja-JP');
+    if (n < 100000000) return '¥' + (n / 10000).toFixed(1) + '万';
+    return '¥' + (n / 100000000).toFixed(2) + '億';
+  }
+
+  // 投資リストのDOMは最初に1回だけ作る。以降はテキスト/クラスだけ更新する
+  // (毎回innerHTMLで作り直すとクリックのたびに重くなり、ラグの原因になっていた)
+  function buildInvestList() {
+    investments.forEach(inv => {
+      const item = document.createElement('div');
+      item.className = 'invest-item';
+
+      const icon = document.createElement('div');
+      icon.className = 'invest-icon';
+      icon.textContent = inv.icon;
+
+      const info = document.createElement('div');
+      const name = document.createElement('div');
+      name.className = 'invest-name';
+      name.textContent = inv.name;
+      const desc = document.createElement('div');
+      desc.className = 'invest-desc';
+      desc.textContent = inv.desc;
+      const owned = document.createElement('div');
+      owned.className = 'invest-owned';
+      info.appendChild(name);
+      info.appendChild(desc);
+      info.appendChild(owned);
+
+      const cost = document.createElement('div');
+      cost.className = 'invest-cost';
+
+      item.appendChild(icon);
+      item.appendChild(info);
+      item.appendChild(cost);
+
+      item.addEventListener('click', () => buyInvestment(inv.id));
+      investList.appendChild(item);
+
+      // 更新用に参照を保持しておく
+      inv.el = item;
+      inv.costEl = cost;
+      inv.ownedEl = owned;
+    });
+  }
+
+  function updateInvestUI() {
+    investments.forEach(inv => {
+      const locked = inv.unlockStage && highestStageIndex < IPO_STAGE_INDEX;
+      const affordable = !locked && money >= inv.cost;
+
+      inv.el.className = 'invest-item ' + (locked ? 'locked' : (affordable ? 'affordable' : 'locked'));
+      inv.costEl.className = 'invest-cost ' + (affordable ? '' : 'cant-afford');
+      inv.costEl.textContent = locked ? '🔒 上場後に解禁' : formatMoney(inv.cost);
+      inv.ownedEl.textContent = inv.owned > 0 ? `保有: ${inv.owned}` : '';
+    });
+  }
+
+  function render() {
+    balanceAmount.textContent = formatMoney(money);
+    perClickLabel.textContent = `1クリック = ${formatMoney(perClick)}`;
+    tickerRate.textContent = `秒間収入 ${formatMoney(perSecond)}`;
+
+    updateInvestUI();
+    updateCompany();
+    updateThemeRow();
+    updateStakeDisplay();
+    checkMilestones();
+  }
+
+  function buyInvestment(id) {
+    const inv = investments.find(i => i.id === id);
+    if (!inv) return;
+    const locked = inv.unlockStage && highestStageIndex < IPO_STAGE_INDEX;
+    if (locked || money < inv.cost) return;
+
+    money -= inv.cost;
+    inv.owned += 1;
+    inv.cost = Math.ceil(inv.baseCost * Math.pow(GROWTH_RATE, inv.owned));
+
+    if (inv.type === 'click') {
+      perClick += inv.power;
+    } else {
+      perSecond += inv.power;
+    }
+
+    render();
+  }
+
+  function checkMilestones() {
+    for (const m of milestones) {
+      if (money >= m.at && !shownMilestones.has(m.at)) {
+        shownMilestones.add(m.at);
+        milestoneBanner.textContent = '★ ' + m.text;
+        milestoneBanner.style.opacity = '1';
+        setTimeout(() => { milestoneBanner.style.opacity = '0'; }, 4000);
+        break;
+      }
+    }
+  }
+
+  // ---- 効果音(Web Audio APIでコイン音を合成) ----
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+  }
+
+  function playCoinSound() {
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const now = ctx.currentTime;
+
+    // 2つの短い高音を重ねて「チャリン」感を出す
+    [1200, 1800].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + i * 0.02);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.6, now + i * 0.02 + 0.12);
+
+      gain.gain.setValueAtTime(0.0001, now + i * 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.15, now + i * 0.02 + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.02 + 0.15);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.02);
+      osc.stop(now + i * 0.02 + 0.16);
+    });
+  }
+
+  function spawnFloatText(x, y, amount) {
+    const el = document.createElement('div');
+    el.className = 'float-plus';
+    el.textContent = '+' + formatMoney(amount);
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.setProperty('--drift', (Math.random() * 40 - 20) + 'px');
+    balancePanel.appendChild(el);
+    setTimeout(() => el.remove(), 900);
+  }
+
+  // ---- ハイリスク投資(ギャンブル) ----
+  const GAMBLE_OUTCOMES = [
+    { label: '大成功! 仮想通貨が急騰した', mult: 3,   weight: 10, type: 'win'  },
+    { label: '成功。値上がりで少し儲かった', mult: 1.5, weight: 30, type: 'win'  },
+    { label: '横ばい。ほぼ変わらなかった',   mult: 1.0, weight: 20, type: 'flat' },
+    { label: '失敗。値下がりで半分になった', mult: 0.5, weight: 25, type: 'lose' },
+    { label: '大暴落。賭け金を全て失った',   mult: 0,   weight: 15, type: 'lose' }
+  ];
+  const GAMBLE_HISTORY_MAX = 12;
+  let stakePercent = 25;
+  let gambleHistory = [];
+  let isGambling = false;
+
+  function updateStakeDisplay() {
+    stakeButtons.forEach(btn => {
+      btn.classList.toggle('selected', Number(btn.dataset.percent) === stakePercent);
+      btn.disabled = isGambling;
+    });
+    const stake = Math.floor(money * (stakePercent / 100));
+    stakeAmountEl.textContent = formatMoney(stake);
+    gambleBtn.disabled = isGambling || stake <= 0;
+  }
+
+  stakeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      stakePercent = Number(btn.dataset.percent);
+      updateStakeDisplay();
+    });
+  });
+
+  function pickGambleOutcome() {
+    const totalWeight = GAMBLE_OUTCOMES.reduce((sum, o) => sum + o.weight, 0);
+    let roll = Math.random() * totalWeight;
+    for (const outcome of GAMBLE_OUTCOMES) {
+      if (roll < outcome.weight) return outcome;
+      roll -= outcome.weight;
+    }
+    return GAMBLE_OUTCOMES[GAMBLE_OUTCOMES.length - 1];
+  }
+
+  function playLoseSound() {
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(90, now + 0.45);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.5);
+  }
+
+  function addGambleHistory(type) {
+    gambleHistory.unshift(type);
+    gambleHistory = gambleHistory.slice(0, GAMBLE_HISTORY_MAX);
+    gambleHistoryEl.innerHTML = gambleHistory
+      .map(t => `<div class="gamble-chip ${t}"></div>`)
+      .join('');
+  }
+
+  // ---- 株価チャートの描画 ----
+  const STOCK_STEPS = 24;       // 5秒を24分割 = 約208msごとに更新
+  const STOCK_DURATION = 5000;
+  const STOCK_BASE = 100;       // 開始時の株価指数(100 = 賭け金と同額)
+  const STOCK_MAX = 380;        // 値の上限(表示用・生成用の安全キャップ)
+
+  // 最終的な株価(outcome.mult × 100)に向かって、ランダムにジグザグしながら着地するパスを作る
+  // 序盤〜中盤は大きく自由に動かし、終盤(進行度の3乗)で一気に着地点へ引き寄せる
+  function generateStockPath(target) {
+    const values = [STOCK_BASE];
+    for (let i = 1; i < STOCK_STEPS; i++) {
+      const progress = i / STOCK_STEPS;
+      const pull = (target - values[i - 1]) * Math.pow(progress, 3) * 0.7;
+      const noise = (Math.random() - 0.5) * 46;
+      let next = values[i - 1] + pull + noise;
+      next = Math.max(0, Math.min(STOCK_MAX, next));
+      values.push(next);
+    }
+    values.push(target);
+    return values;
+  }
+
+  // 今表示されている値動きの範囲にあわせて縦軸を自動ズームする(小さい上下でもはっきり見えるように)
+  function drawStockChart(values) {
+    const minV = Math.min(...values, STOCK_BASE);
+    const maxV = Math.max(...values, STOCK_BASE);
+    let range = maxV - minV;
+    if (range < 50) range = 50; // 最低表示幅を確保(値がまだ動いてない最初の方でもズームしすぎない)
+    const padding = range * 0.2;
+    const yMin = minV - padding;
+    const yMax = maxV + padding;
+
+    function scaleY(v) {
+      const clamped = Math.max(yMin, Math.min(yMax, v));
+      return 95 - ((clamped - yMin) / (yMax - yMin)) * 90;
+    }
+
+    const n = values.length - 1;
+    const points = values
+      .map((v, i) => `${(i / n) * 300},${scaleY(v)}`)
+      .join(' ');
+    stockLineEl.setAttribute('points', points);
+
+    const baselineY = scaleY(STOCK_BASE);
+    stockBaselineEl.setAttribute('y1', baselineY);
+    stockBaselineEl.setAttribute('y2', baselineY);
+
+    const current = values[values.length - 1];
+    const changePercent = ((current - STOCK_BASE) / STOCK_BASE) * 100;
+    stockPriceLabel.textContent = `株価: ${Math.round(current)}`;
+    stockChangeLabel.textContent = `(${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(1)}%)`;
+    stockChangeLabel.className = changePercent >= 0 ? 'up' : 'down';
+    stockLineEl.classList.toggle('down', changePercent < 0);
+  }
+
+  function resetStockChart() {
+    stockLineEl.setAttribute('points', '');
+    stockBaselineEl.setAttribute('y1', 50);
+    stockBaselineEl.setAttribute('y2', 50);
+    stockPriceLabel.textContent = `株価: ${STOCK_BASE}`;
+    stockChangeLabel.textContent = '(±0.0%)';
+    stockChangeLabel.className = '';
+    stockLineEl.classList.remove('down');
+  }
+
+  function runGamble() {
+    const stake = Math.floor(money * (stakePercent / 100));
+    if (stake <= 0 || isGambling) return;
+
+    isGambling = true;
+    gambleBtn.disabled = true;
+    stakeButtons.forEach(btn => btn.disabled = true);
+    gambleResultEl.className = 'gamble-result';
+    gambleResultEl.textContent = '値動きを見守っています…';
+    resetStockChart();
+
+    // 結果は先に確定させ、チャートはその結果に向かってランダムに動く
+    const outcome = pickGambleOutcome();
+    const target = outcome.mult * STOCK_BASE;
+    const path = generateStockPath(target);
+
+    let step = 0;
+    const revealed = [path[0]];
+    drawStockChart(revealed);
+
+    const timer = setInterval(() => {
+      step++;
+      revealed.push(path[step]);
+      drawStockChart(revealed);
+
+      if (step >= path.length - 1) {
+        clearInterval(timer);
+        finishGamble(stake, outcome);
+      }
+    }, STOCK_DURATION / STOCK_STEPS);
+  }
+
+  function finishGamble(stake, outcome) {
+    const resultAmount = Math.floor(stake * outcome.mult);
+    money = money - stake + resultAmount;
+
+    gambleResultEl.className = 'gamble-result ' + outcome.type;
+    const diff = resultAmount - stake;
+    const diffText = diff >= 0 ? `+${formatMoney(diff)}` : `-${formatMoney(Math.abs(diff))}`;
+    gambleResultEl.textContent = `${outcome.label}(${diffText})`;
+
+    if (outcome.type === 'win') {
+      playCoinSound();
+    } else if (outcome.type === 'lose') {
+      playLoseSound();
+    }
+
+    addGambleHistory(outcome.type);
+    isGambling = false;
+    stakeButtons.forEach(btn => btn.disabled = false);
+    render();
+  }
+
+  gambleBtn.addEventListener('click', runGamble);
+
+  clickBtn.addEventListener('click', (e) => {
+    money += perClick;
+    playCoinSound();
+    const rect = balancePanel.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top - 20;
+    spawnFloatText(x, y, perClick);
+    render();
+  });
+
+  // 自動収入ループ(100msごとに perSecond / 10 を加算)
+  setInterval(() => {
+    if (perSecond > 0) {
+      money += perSecond / 10;
+      render();
+    }
+  }, 100);
+
+  // 社員による自動クリック(2秒ごとに、社員1人につきクリック1回分の収入)
+  const employeeInv = investments.find(i => i.id === 'employee');
+  setInterval(() => {
+    const employeeCount = employeeInv.owned;
+    if (employeeCount <= 0) return;
+
+    money += perClick * employeeCount;
+    playCoinSound();
+
+    const rect = clickBtn.getBoundingClientRect();
+    const panelRect = balancePanel.getBoundingClientRect();
+    const x = rect.left - panelRect.left + rect.width / 2 + (Math.random() * 30 - 15);
+    const y = rect.top - panelRect.top;
+    spawnFloatText(x, y, perClick * employeeCount);
+
+    clickBtn.classList.remove('auto-pulse');
+    void clickBtn.offsetWidth;
+    clickBtn.classList.add('auto-pulse');
+
+    render();
+  }, 2000);
+
+  // ---- 会社名の設定 ----
+  function confirmCompanyName() {
+    const val = companyNameInput.value.trim();
+    companyName = val || '名もなき合同会社';
+    companyNameTag.textContent = companyName;
+    startOverlay.classList.add('hidden');
+  }
+
+  startBtn.addEventListener('click', confirmCompanyName);
+  companyNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmCompanyName();
+  });
+
+  // ---- オンラインランキング(共有ストレージを使用。他のプレイヤーにも見える) ----
+  const leaderboardList = document.getElementById('leaderboardList');
+  const submitScoreBtn = document.getElementById('submitScoreBtn');
+  const refreshRankBtn = document.getElementById('refreshRankBtn');
+  const leaderboardStatus = document.getElementById('leaderboardStatus');
+
+  function setLeaderboardStatus(text) {
+    leaderboardStatus.textContent = text;
+    if (text) setTimeout(() => { leaderboardStatus.textContent = ''; }, 3000);
+  }
+
+  function renderLeaderboard(entries) {
+    if (!entries.length) {
+      leaderboardList.innerHTML = '<div class="leaderboard-empty">まだ誰も登録していません。最初の1人になろう!</div>';
+      return;
+    }
+    leaderboardList.innerHTML = '';
+    entries.forEach((entry, i) => {
+      const rank = i + 1;
+      const item = document.createElement('div');
+      item.className = 'rank-item' + (rank <= 3 ? ' rank-' + rank : '');
+      item.innerHTML = `
+        <div class="rank-num">${rank}</div>
+        <div class="rank-name">${escapeHtml(entry.name || '名無し')}</div>
+        <div class="rank-score">${formatMoney(entry.score || 0)}</div>
+      `;
+      leaderboardList.appendChild(item);
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  async function loadLeaderboard() {
+    if (!firebaseReady) {
+      setLeaderboardStatus('Firebaseの設定がまだ済んでいません(上部のfirebaseConfigを確認)');
+      renderLeaderboard([]);
+      return;
+    }
+    try {
+      const snapshot = await db.collection('leaderboard')
+        .orderBy('score', 'desc')
+        .limit(10)
+        .get();
+
+      const entries = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        entries.push({ name: data.name, score: data.score });
+      });
+
+      renderLeaderboard(entries);
+    } catch (e) {
+      console.error('ランキング取得エラー:', e);
+      setLeaderboardStatus('ランキングの取得に失敗しました');
+    }
+  }
+
+  async function submitScore() {
+    if (!firebaseReady) {
+      setLeaderboardStatus('Firebaseの設定がまだ済んでいません(上部のfirebaseConfigを確認)');
+      return;
+    }
+    submitScoreBtn.disabled = true;
+    try {
+      await db.collection('leaderboard').add({
+        name: companyName,
+        score: Math.floor(money),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      setLeaderboardStatus('ランキングに登録しました!');
+      await loadLeaderboard();
+    } catch (e) {
+      console.error('ランキング登録エラー:', e);
+      setLeaderboardStatus('登録に失敗しました');
+    } finally {
+      submitScoreBtn.disabled = false;
+    }
+  }
+
+  submitScoreBtn.addEventListener('click', submitScore);
+  refreshRankBtn.addEventListener('click', loadLeaderboard);
+
+  buildInvestList();
+  buildThemeRow();
+  render();
+  companyNameInput.focus();
+  loadLeaderboard();
+</script>
+</body>
+</html>
