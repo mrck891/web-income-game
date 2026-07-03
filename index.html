@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>不労所得タイクーン</title>
 
 <!--
@@ -29,7 +29,12 @@
     --font-body: 'Noto Sans JP', sans-serif;
   }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* スマホで連打した時にダブルタップズームが誤発動して画面が拡大縮小するのを防ぐ */
+  button, .invest-item, .theme-swatch, .stake-btn {
+    touch-action: manipulation;
+  }
 
   body {
     background: var(--bg);
