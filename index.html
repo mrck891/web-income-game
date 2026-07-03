@@ -30,11 +30,8 @@
   }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-button, .invest-item, .theme-swatch, .stake-btn {
-    touch-action: manipulation;
-  }
-  /* スマホで連打した時にダブルタップズームが誤発動して画面が拡大縮小するのを防ぐ */
-  button, .invest-item, .theme-swatch, .stake-btn {
+/* スマホで連打した時にダブルタップズームが誤発動して画面が拡大縮小するのを防ぐ(ページ全体に適用) */
+  html, body {
     touch-action: manipulation;
   }
 
