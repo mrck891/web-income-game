@@ -970,6 +970,20 @@ const firebaseConfig = {
   }
   // ============================================================
 
+ // ---- ダブルタップズーム対策(iOS Safariなど、CSSだけでは防ぎきれない端末向けの保険) ----
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (event) => {
+    const isInteractive = event.target.closest(
+      'button, .invest-item, .theme-swatch, .stake-btn, input'
+    );
+    if (isInteractive) return;
+
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
   // ---- ゲーム状態 ----
   let money = 0;
   let perClick = 1;
